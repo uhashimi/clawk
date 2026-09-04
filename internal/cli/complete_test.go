@@ -141,10 +141,13 @@ func TestCompleteRunArgs(t *testing.T) {
 	})
 
 	t.Run("descriptions do not participate in matching", func(t *testing.T) {
-		// Every runner's description contains "agent"; matching against
-		// descriptions would return them all. It must return nothing —
-		// no runner NAME matches "agent".
-		got, _ := completeRunArgs(nil, nil, "agent")
+		// Every runner's description is "coding agent runner"; matching
+		// against descriptions would return them all. It must return
+		// nothing — no runner NAME contains "coding" (probe word chosen
+		// so it survives runner additions: a name like "coding-foo" would
+		// need the probe re-picked, but "agent" already died that way
+		// when prime-agent landed).
+		got, _ := completeRunArgs(nil, nil, "coding")
 		if len(got) != 0 {
 			t.Errorf("description text must not match, got %v", got)
 		}

@@ -28,6 +28,10 @@ func TestWriteDiskRoundTrip(t *testing.T) {
 			Path: "/etc/profile.d/99-clawk-env.sh", Mode: 0o644,
 			Content: []byte("export FOO=bar\nbinary\x00bytes"),
 		}},
+		Commands: []Command{{
+			Name: "herdr-integrations", Path: "/bin/sh",
+			Args: []string{"-c", "command -v herdr || exit 0"}, User: true,
+		}},
 		Services: []Service{{Name: "agent", Path: AgentPath}},
 	}
 
@@ -43,4 +47,7 @@ func TestWriteDiskRoundTrip(t *testing.T) {
 	require.Equal(t, Version, got.Version, "WriteDisk must default Version")
 	require.True(t, got.Hostname == m.Hostname && got.User.UID == 501 && got.Network.Address == m.Network.Address, "round-trip mismatch: %+v", got)
 	require.True(t, bytes.Equal(got.Files[0].Content, m.Files[0].Content), "file content (with NUL bytes) did not survive the round trip")
+	require.Len(t, got.Commands, 1)
+	require.True(t, got.Commands[0].User, "command user flag did not survive the round trip")
+	require.Equal(t, m.Commands[0].Args, got.Commands[0].Args)
 }

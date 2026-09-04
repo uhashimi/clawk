@@ -40,8 +40,9 @@ FROM node:22-bookworm-slim
 COPY --from=go /usr/local/go /usr/local/go
 ENV PATH=/usr/local/go/bin:$PATH
 
-# Coding agents. claude is what bare `clawk` attaches to; codex, pi, and
-# opencode are the other built-in runners, all installed here so every
+# Coding agents. claude is what bare `clawk` attaches to; codex, pi, omp,
+# prime-agent, and opencode are the other built-in runners, and herdr is the
+# terminal workspace manager for agent panes — all installed here so every
 # `clawk run <name>` in the registry works out of the box.
 #
 # opencode-ai resolves a large prebuilt platform binary (~180 MB for
@@ -67,6 +68,20 @@ RUN mkdir -p /usr/local/npm-global \
         @earendil-works/pi-coding-agent opencode-ai \
     && npm cache clean --force \
     && chmod -R a+rwX /usr/local/npm-global
+
+# The runners that don't come from the npm line above: omp (a fork of pi;
+# prebuilt binary mode — the installer's default would drag in bun),
+# prime-agent (a fork of pi with a Python REPL tool; its installer uses
+# npm, so it lands in the world-writable prefix above and can
+# self-update like the rest), and herdr (terminal workspace manager).
+# All three pin their install dir explicitly: their defaults would land
+# under /root/.local/bin, which clawk's boot-time `agent` user (host uid,
+# created after this layer) cannot read.
+RUN curl -fsSL https://omp.sh/install \
+        | PI_INSTALL_DIR=/usr/local/bin sh -s -- --binary \
+    && curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh \
+    && curl -fsSL https://herdr.dev/install.sh | HERDR_INSTALL_DIR=/usr/local/bin sh \
+    && omp --version && prime-agent --version && herdr --version
 
 # The toolbox agents reach for constantly. build-essential is the
 # heaviest entry (~250 MB) but native node modules, cgo, and "just make

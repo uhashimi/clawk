@@ -40,11 +40,50 @@ func TestAgentRegistryNames(t *testing.T) {
 		require.Equalf(t, strings.ToLower(a.Name), a.Name, "runner %q must be lowercase", a.Name)
 		require.NotContainsf(t, a.Name, " ", "runner %q must not contain whitespace", a.Name)
 	}
-	require.Subset(t, seen, map[string]bool{"claude": true, "codex": true, "pi": true, "opencode": true})
+	require.Subset(t, seen, map[string]bool{"claude": true, "codex": true, "pi": true, "omp": true,
+		"prime-agent": true, "opencode": true, "herdr": true})
 
 	// Runner names are reserved as sandbox names — a sandbox called "pi"
 	// would make `clawk run pi` ambiguous.
 	require.Contains(t, reservedAgentNames(), "pi")
+}
+
+// TestNewRunnersRegistered pins the registry entries for the runners that
+// joined after pi. omp is a fork of pi: unlike pi (one-shot project-trust
+// prompt, answered by --approve) it gates every tool call, and
+// --auto-approve is its "already externally sandboxed" answer. prime-agent
+// is a fork of pi with no prompts to pre-answer at all. herdr is the
+// multiplexer, not a coding agent: launched bare so it attaches to its
+// persistent session.
+func TestNewRunnersRegistered(t *testing.T) {
+	omp, err := agentByName("omp")
+	require.NoError(t, err)
+	require.Equal(t, []string{"--auto-approve"}, omp.DefaultArgs)
+	require.Empty(t, omp.MCPConfigFlag,
+		"omp loads MCP through mcp.json files, not a config-file flag")
+
+	prime, err := agentByName("prime-agent")
+	require.NoError(t, err)
+	require.Empty(t, prime.DefaultArgs,
+		"prime-agent has no approval/trust prompt to bypass; --autonomous changes run semantics")
+
+	herdr, err := agentByName("herdr")
+	require.NoError(t, err)
+	require.Empty(t, herdr.DefaultArgs,
+		"herdr is launched bare — it attaches to its persistent session")
+
+	// The state-dir list and the registry stay in lock step: herdr's
+	// sessions persist, omp/prime-agent carry their own homes.
+	for _, agent := range []string{"omp", "prime-agent", "herdr"} {
+		found := false
+		for _, d := range sandbox.AgentStateDirs {
+			if d.Agent == agent {
+				found = true
+				break
+			}
+		}
+		require.Truef(t, found, "runner %q has no persisted state dir", agent)
+	}
 }
 
 // TestAgentStateDirsNameRealRunners keeps the persistence list honest: every

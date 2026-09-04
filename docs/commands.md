@@ -45,7 +45,7 @@ field is optional.
 
 ## Runners
 
-Built-in runners: `claude`, `codex`, `pi`, `opencode`, `shell`. The dispatch
+Built-in runners: `claude`, `codex`, `pi`, `omp`, `prime-agent`, `opencode`, `herdr`, `shell`. The dispatch
 shape is the same for all five:
 
 ```sh
@@ -79,12 +79,28 @@ runner, mounted over the guest's home:
 | `~/.clawk/namespaces/default/state/<name>/claude/`          | `~/.claude/`                |
 | `~/.clawk/namespaces/default/state/<name>/codex/`           | `~/.codex/`                 |
 | `~/.clawk/namespaces/default/state/<name>/pi/`              | `~/.pi/`                    |
+| `~/.clawk/namespaces/default/state/<name>/omp/`             | `~/.omp/`                   |
+| `~/.clawk/namespaces/default/state/<name>/prime-agent/`     | `~/.prime/agent/`           |
 | `~/.clawk/namespaces/default/state/<name>/opencode-data/`   | `~/.local/share/opencode/`  |
 | `~/.clawk/namespaces/default/state/<name>/opencode-config/` | `~/.config/opencode/`       |
+| `~/.clawk/namespaces/default/state/<name>/herdr/`           | `~/.config/herdr/`          |
 
 opencode needs two because it follows the XDG split rather than keeping one
 home directory. Its `~/.local/state/opencode` (locks) and `~/.cache/opencode`
-are deliberately left on the disposable rootfs.
+are deliberately left on the disposable rootfs. prime-agent's state home is
+the nested `~/.prime/agent/` (its `PRIME_AGENT_CODING_AGENT_DIR`). herdr's
+config dir also carries its named sessions (`sessions/<name>/`) and sockets —
+herdr unlinks and rebinds stale sockets at start, so persisting them is safe;
+its `~/.local/state/herdr` is a refetchable manifest cache and stays on the
+rootfs like opencode's lock dir.
+
+herdr gets one extra boot step: clawk-init runs a best-effort command that
+installs herdr's built-in agent integrations for every coding agent the image
+ships (`herdr integration install <agent>`), writing each hook into the agent's
+just-mounted state dir as the sandbox user. The install is idempotent, so it
+re-runs on every boot — it refreshes hooks after a herdr update and re-merges
+claude's `settings.json` entry without touching clawk's own forced settings.
+prime-agent has no herdr integration upstream, so it gets none.
 
 This is the only thing that persists a runner's sessions: the VM disk is
 re-cloned from the image on every boot, so a runner writing anywhere else

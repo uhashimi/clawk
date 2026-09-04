@@ -75,6 +75,38 @@ var agents = []Agent{
 		// `mcp ( … )` block gets nothing here until that's rendered too.
 	},
 	{
+		Name: "omp",
+		// A fork of pi with the IDE wired in. Unlike pi (whose only gate
+		// is the one-shot project-trust prompt, answered by --approve —
+		// omp has no such prompt), omp gates every tool call behind an
+		// approval prompt. --auto-approve is its "you are already
+		// externally sandboxed" answer, the same posture as the flags
+		// above. No MCPConfigFlag: omp loads MCP from mcp.json files
+		// (~/.omp/agent/mcp.json, project mcp.json), not a path flag.
+		DefaultArgs: []string{"--auto-approve"},
+	},
+	{
+		Name: "prime-agent",
+		// A fork of pi with a Python REPL tool. No trust or approval
+		// prompts to pre-answer — permission policies arrive via
+		// extensions — so there is nothing to prepend. --autonomous is
+		// not a stand-in: it changes run semantics (keep going until a
+		// gate passes), which a bare `clawk run` must not do. No
+		// MCPConfigFlag: prime-agent manages MCP through its own `mcp`
+		// subcommand, not a path flag.
+	},
+	{
+		Name: "herdr",
+		// A terminal workspace manager (tmux-style server/client for
+		// agent panes), not a coding agent. Launched bare: it starts or
+		// attaches to its persistent session, and its built-in agent
+		// integrations (installed at boot — see herdrIntegrationsScript)
+		// let any agent running in a herdr pane report its state. Its
+		// sessions and config persist under ~/.config/herdr (see
+		// AgentStateDirs), so a named `herdr --session` survives
+		// down/up.
+	},
+	{
 		Name: "opencode",
 		// opencode gates every tool call behind a permission prompt unless
 		// told otherwise; --auto approves anything not explicitly denied

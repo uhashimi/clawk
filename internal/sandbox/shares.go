@@ -97,6 +97,22 @@ type AgentStateDir struct {
 //	claude  ~/.claude       projects/, memory/, settings.json, .credentials.json
 //	codex   ~/.codex        sessions/, history.jsonl, auth.json, config.toml
 //	pi      ~/.pi           agent/{sessions,settings.json,auth.json,trust.json}
+//	omp     ~/.omp          agent/sessions/, auth (a fork of pi; it keeps
+//	                    pi's PI_CONFIG_DIR contract but uses its own
+//	                    home — ~/.pi would mean two runners' state in
+//	                    one dir)
+//	prime-agent  ~/.prime/agent  sessions/, logs/, auth (also a pi fork;
+//	                    its state home is the nested dir, per
+//	                    PRIME_AGENT_CODING_AGENT_DIR)
+//
+// herdr (the terminal workspace manager, not a coding agent) persists its
+// config and named sessions under ~/.config/herdr: config.toml,
+// sessions/<name>/, and the server/client sockets. Sockets are safe to
+// carry across boots — herdr unlinks and rebinds them at start (verified:
+// kill -9, stale sockets, clean restart). Its ~/.local/state/herdr is
+// deliberately left on the disposable rootfs: a refetchable
+// agent-detection manifest cache, same trade as opencode's lock-only
+// state dir above.
 //
 // opencode is the one runner that needs two, because it follows the XDG
 // split rather than keeping a single home (verified with `opencode debug
@@ -115,20 +131,24 @@ type AgentStateDir struct {
 //
 // Cost note: every entry here is a PCIe device on every sandbox, against
 // the ceiling documented in machine/vz (32, with a field-confirmed failure
-// at 34). Five entries plus the workspace, the per-repo aliases, and the
+// at 34). Eight entries plus the workspace, the per-repo aliases, and the
 // default capability shares still leaves room for a normal multi-repo
-// sandbox, but this list is not free to extend — a sixth runner wanting
-// three dirs is where the consolidation trick (one mount plus a
-// dir-override env var, e.g. OPENCODE_CONFIG_DIR) starts paying for its
-// complexity.
+// sandbox, but this list is not free to extend — a runner wanting three
+// dirs is where the consolidation trick (one mount plus a dir-override
+// env var, e.g. OPENCODE_CONFIG_DIR) starts paying for its complexity.
 var AgentStateDirs = []AgentStateDir{
 	{Agent: "claude", Sub: "claude", Tag: "claude_home", GuestPath: GuestHome + "/.claude"},
 	{Agent: "codex", Sub: "codex", Tag: "codex_home", GuestPath: GuestHome + "/.codex"},
 	{Agent: "pi", Sub: "pi", Tag: "pi_home", GuestPath: GuestHome + "/.pi"},
+	{Agent: "omp", Sub: "omp", Tag: "omp_home", GuestPath: GuestHome + "/.omp"},
+	{Agent: "prime-agent", Sub: "prime-agent", Tag: "prime_agent",
+		GuestPath: GuestHome + "/.prime/agent"},
 	{Agent: "opencode", Sub: "opencode-data", Tag: "opencode_data",
 		GuestPath: GuestHome + "/.local/share/opencode"},
 	{Agent: "opencode", Sub: "opencode-config", Tag: "opencode_config",
 		GuestPath: GuestHome + "/.config/opencode"},
+	{Agent: "herdr", Sub: "herdr", Tag: "herdr_config",
+		GuestPath: GuestHome + "/.config/herdr"},
 }
 
 // PersistentAgentShares returns the per-sandbox host shares that carry

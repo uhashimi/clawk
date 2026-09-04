@@ -211,6 +211,17 @@ func OCIGuestManifest(sb *config.Sandbox, stateDir, cacheDir, rootDir string) (g
 			Path: f.GuestPath, Mode: f.Mode, Owner: owner, Content: data,
 		})
 	}
+
+	// Herdr agent-state integrations: if the image ships herdr, install
+	// its built-in integration for every coding agent the image has.
+	// Runs after the agent state mounts (its hooks land IN them) and as
+	// the sandbox user (ownership). Best-effort — see herdr.go.
+	m.Commands = append(m.Commands, guestcfg.Command{
+		Name: "herdr-integrations",
+		Path: "/bin/sh",
+		Args: []string{"-c", herdrIntegrationsScript},
+		User: true,
+	})
 	return m, nil
 }
 

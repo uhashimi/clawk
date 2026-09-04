@@ -38,6 +38,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -57,6 +58,7 @@ type manifest struct {
 	Swap     *swapSpec     `json:"swap,omitempty"`
 	Mounts   []mountSpec   `json:"mounts,omitempty"`
 	Files    []fileSpec    `json:"files,omitempty"`
+	Commands []commandSpec `json:"commands,omitempty"`
 	Services []serviceSpec `json:"services,omitempty"`
 }
 
@@ -113,6 +115,16 @@ type serviceSpec struct {
 	Name string   `json:"name"`
 	Path string   `json:"path"`
 	Args []string `json:"args,omitempty"`
+}
+
+// commandSpec is a one-shot bootstrap command (see guestcfg.Command):
+// run once, in order, after mounts and file writes, before services.
+// Failures are logged, never fatal.
+type commandSpec struct {
+	Name string   `json:"name"`
+	Path string   `json:"path"`
+	Args []string `json:"args,omitempty"`
+	User bool     `json:"user,omitempty"`
 }
 
 const manifestVersion = 1
@@ -191,13 +203,26 @@ func main() {
 	}
 
 	r := newReaper()
+	// The reaper must be looping before any child is spawned: it is the
+	// only wait(2) in this process, so a child that exits with no
+	// listener delivers no status to wait for.
+	go r.run()
+
+	// One-shot bootstrap commands: herdr's agent integrations land here —
+	// they must see the just-mounted agent state dirs, and they must be
+	// user-owned, so after the mounts and with the user credentials.
+	for _, c := range m.Commands {
+		runCommand(c, m.User, r)
+	}
+
 	for _, svc := range m.Services {
 		go supervise(svc, r)
 	}
 	logf("ready")
 
-	// PID 1 duties until poweroff: reap orphans, honor SIGTERM.
-	r.run()
+	// PID 1 duties until poweroff: the reaper goroutine reaps orphans
+	// and powers off on SIGTERM; main just has to stay alive.
+	select {}
 }
 
 func logf(format string, args ...any) {
@@ -972,5 +997,57 @@ func supervise(svc serviceSpec, r *reaper) {
 		_ = cmd.Process.Release()
 		logf("service %s exited (status=%d); restarting in 1s", svc.Name, status)
 		time.Sleep(time.Second)
+	}
+}
+
+// commandTimeout bounds how long a bootstrap command may run before
+// clawk-init stops waiting for it. A command is best-effort: if it
+// hangs (or its exit status was lost to a SIGCHLD race), boot must go
+// on — the services are what the sandbox needs, not the bootstrap.
+const commandTimeout = 30 * time.Second
+
+// runCommand starts c and blocks (up to commandTimeout) for its exit
+// via the reaper. A failing command is logged and carried on — see the
+// type's doc.
+func runCommand(c commandSpec, u *manifestUser, r *reaper) {
+	cmd := exec.Command(c.Path, c.Args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	// PID 1 starts with an empty environment; give commands the same
+	// standard PATH supervise gives services.
+	env := []string{"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"}
+	if c.User && u != nil {
+		// Run as the sandbox user: the mount preserves ownership, so a
+		// root-written file in an agent state dir would be a root-owned
+		// file in the agent's home.
+		home := "/home/" + u.Name
+		env = append(env, "HOME="+home, "USER="+u.Name, "LOGNAME="+u.Name)
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Credential: &syscall.Credential{Uid: uint32(u.UID), Gid: uint32(u.GID)},
+		}
+	}
+	cmd.Env = env
+
+	r.mu.Lock()
+	if err := cmd.Start(); err != nil {
+		r.mu.Unlock()
+		logf("command %s: start: %v", c.Name, err)
+		return
+	}
+	pid := cmd.Process.Pid
+	ch := make(chan int, 1)
+	r.waiters[pid] = ch
+	r.mu.Unlock()
+
+	select {
+	case status := <-ch:
+		// Release the os/exec bookkeeping without letting it wait(2):
+		// the reaper already collected the child.
+		_ = cmd.Process.Release()
+		logf("command %s exited (status=%d)", c.Name, status)
+	case <-time.After(commandTimeout):
+		// Status lost (SIGCHLD race) or the command hung: log and move
+		// on. A zombie, if any, is collected by the reaper's next sweep.
+		logf("command %s: no exit status within %s; moving on", c.Name, commandTimeout)
 	}
 }

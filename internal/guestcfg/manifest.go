@@ -50,6 +50,7 @@ type Manifest struct {
 	Swap     *Swap     `json:"swap,omitempty"`
 	Mounts   []Mount   `json:"mounts,omitempty"`
 	Files    []File    `json:"files,omitempty"`
+	Commands []Command `json:"commands,omitempty"`
 	Services []Service `json:"services,omitempty"`
 }
 
@@ -150,6 +151,25 @@ type Service struct {
 	Name string   `json:"name"`
 	Path string   `json:"path"`
 	Args []string `json:"args,omitempty"`
+}
+
+// Command is a one-shot guest command clawk-init runs after the mounts
+// and file writes, before the services start. Unlike a Service it runs
+// once, in order, and a failure is logged rather than fatal — bootstrap
+// steps are best-effort: a failed hook install must not hold boot.
+//
+// User runs the command as the manifest user (credential switch plus
+// HOME/USER/LOGNAME set), so files it writes under a mounted agent state
+// dir come out owned by that user — virtio-fs preserves ownership, so a
+// root-written hook would be a root file in the agent's home.
+//
+// Additive like Swap: an older clawk-init ignores the field and boots
+// without running the commands, so this needs no Version bump.
+type Command struct {
+	Name string   `json:"name"`
+	Path string   `json:"path"`
+	Args []string `json:"args,omitempty"`
+	User bool     `json:"user,omitempty"`
 }
 
 // sectorSize is the block alignment virtio-blk attachments require of

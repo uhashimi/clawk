@@ -29,10 +29,16 @@ func TestPersistentAgentSharesCoverEveryRunnerHome(t *testing.T) {
 		GuestHome + "/.claude": {"claude", "claude_home"},
 		GuestHome + "/.codex":  {"codex", "codex_home"},
 		GuestHome + "/.pi":     {"pi", "pi_home"},
+		GuestHome + "/.omp":    {"omp", "omp_home"},
+		// prime-agent keeps its state in the nested dir per its env var
+		// (PRIME_AGENT_CODING_AGENT_DIR), not in a whole home.
+		GuestHome + "/.prime/agent": {"prime-agent", "prime_agent"},
 		// opencode follows the XDG split, so it needs two: the data dir
 		// (auth.json, mcp-auth.json, opencode.db) and the config dir.
 		GuestHome + "/.local/share/opencode": {"opencode-data", "opencode_data"},
 		GuestHome + "/.config/opencode":      {"opencode-config", "opencode_config"},
+		// herdr persists config and named sessions in its XDG config dir.
+		GuestHome + "/.config/herdr": {"herdr", "herdr_config"},
 	}
 	require.Len(t, byGuest, len(want), "one share per persisted runner home")
 	for guest, w := range want {
@@ -159,4 +165,20 @@ func TestOCIGuestManifestMountsEveryAgentHome(t *testing.T) {
 	require.Contains(t, idx, "codex_skills")
 	require.Less(t, idx["codex_home"], idx["codex_skills"],
 		"~/.codex must mount before ~/.codex/skills or the skills mount is shadowed")
+
+	// The herdr bootstrap command must ride every manifest: its hooks
+	// land in the mounted agent state dirs, so a missing command means
+	// hooks silently absent (and re-added only when someone runs
+	// `herdr integration install` by hand). It must run as the sandbox
+	// user or the hooks come out root-owned in the agent's home.
+	var herdrCmd *guestcfg.Command
+	for i := range m.Commands {
+		if m.Commands[i].Name == "herdr-integrations" {
+			herdrCmd = &m.Commands[i]
+		}
+	}
+	require.NotNil(t, herdrCmd, "herdr-integrations command missing from the guest manifest")
+	require.True(t, herdrCmd.User, "herdr hooks would be root-owned")
+	require.Contains(t, strings.Join(herdrCmd.Args, " "),
+		"herdr integration install", "script must run the integration installs")
 }
