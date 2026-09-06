@@ -69,19 +69,29 @@ RUN mkdir -p /usr/local/npm-global \
     && npm cache clean --force \
     && chmod -R a+rwX /usr/local/npm-global
 
-# The runners that don't come from the npm line above: omp (a fork of pi;
-# prebuilt binary mode — the installer's default would drag in bun),
-# prime-agent (a fork of pi with a Python REPL tool; its installer uses
-# npm, so it lands in the world-writable prefix above and can
-# self-update like the rest), and herdr (terminal workspace manager).
-# All three pin their install dir explicitly: their defaults would land
-# under /root/.local/bin, which clawk's boot-time `agent` user (host uid,
-# created after this layer) cannot read.
-RUN curl -fsSL https://omp.sh/install \
-        | PI_INSTALL_DIR=/usr/local/bin sh -s -- --binary \
-    && curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh \
-    && curl -fsSL https://herdr.dev/install.sh | HERDR_INSTALL_DIR=/usr/local/bin sh \
-    && omp --version && prime-agent --version && herdr --version
+
+# ----------------------------------------------------- telemetry off --
+# Every agent in this image gets the documented opt-out at the image
+# level. clawk bakes the image's Env into /etc/profile.d (see
+# machine/oci/oci.go: imageEnvFiles), so every runner and `on ( … )`
+# hook inherits it:
+#   DO_NOT_TRACK=1              — prime-agent (and any future
+#                                 conventional-honoring tool)
+#   PRIME_AGENT_TELEMETRY=0     — prime-agent's explicit switch
+#   LIGHTPANDA_DISABLE_TELEMETRY=1 — lightpanda (presence disables);
+#                                 without it events go to
+#                                 telemetry.lightpanda.io
+#   OTEL_SDK_DISABLED=true      — omp: OTLP export is off by default
+#                                 anyway (only activates on
+#                                 OTEL_EXPORTER_OTLP*_ENDPOINT); this
+#                                 is belt-and-braces
+# (omp's startup update check and herdr's update checks are settings,
+# not env — see the on create hooks in clawk.mod.)
+ENV DO_NOT_TRACK=1 \
+    PRIME_AGENT_TELEMETRY=0 \
+    LIGHTPANDA_DISABLE_TELEMETRY=1 \
+    OTEL_SDK_DISABLED=true
+
 
 # The toolbox agents reach for constantly. build-essential is the
 # heaviest entry (~250 MB) but native node modules, cgo, and "just make
@@ -102,6 +112,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         curl \
         fd-find \
+        gawk \
+        socat \
         git \
         jq \
         less \
@@ -113,7 +125,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         unzip \
         vim-tiny \
         wget \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+
+# The runners that don't come from the npm line above: omp (a fork of pi;
+# prebuilt binary mode — the installer's default would drag in bun),
+# prime-agent (a fork of pi with a Python REPL tool; its installer uses
+# npm, so it lands in the world-writable prefix above and can
+# self-update like the rest), and herdr (terminal workspace manager).
+# All three pin their install dir explicitly: their defaults would land
+# under /root/.local/bin, which clawk's boot-time `agent` user (host uid,
+# created after this layer) cannot read.
+RUN curl -fsSL https://omp.sh/install \
+        | PI_INSTALL_DIR=/usr/local/bin sh -s -- --binary \
+    && curl -fsSL https://app.primeintellect.ai/prime-agent/install.sh | sh \
+    && curl -fsSL https://herdr.dev/install.sh | HERDR_INSTALL_DIR=/usr/local/bin sh \
+    && omp --version && prime-agent --version && herdr --version
 
 # GitHub CLI — agents use it for PR workflows; not packaged by Debian.
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \

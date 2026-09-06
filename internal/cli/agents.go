@@ -102,9 +102,9 @@ var agents = []Agent{
 		// attaches to its persistent session, and its built-in agent
 		// integrations (installed at boot — see herdrIntegrationsScript)
 		// let any agent running in a herdr pane report its state. Its
-		// sessions and config persist under ~/.config/herdr (see
-		// AgentStateDirs), so a named `herdr --session` survives
-		// down/up.
+		// sessions and config persist under ~/.local/share/herdr (see
+		// AgentStateDirs) with symlinks in ~/.config/herdr, so a named
+		// `herdr --session` survives down/up.
 	},
 	{
 		Name: "opencode",

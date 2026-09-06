@@ -207,7 +207,7 @@ its disk until destroy. Tools every boot needs belong in the image
 Agent state is host-mounted per sandbox: each runner's home directory —
 claude's `~/.claude/`, codex's `~/.codex/`, pi's `~/.pi/`, omp's `~/.omp/`,
 prime-agent's `~/.prime/agent/`, opencode's two XDG dirs, and herdr's
-`~/.config/herdr/` (config + named sessions) — live under
+`~/.local/share/herdr/` (config + named sessions) — live under
 `~/.clawk/namespaces/default/state/<name>/` on the host, so a recreated
 sandbox picks up its old conversations with `--resume`. That mount is what
 makes the promise real: the VM disk itself is re-cloned from the image on

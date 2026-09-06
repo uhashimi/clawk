@@ -37,8 +37,8 @@ func TestPersistentAgentSharesCoverEveryRunnerHome(t *testing.T) {
 		// (auth.json, mcp-auth.json, opencode.db) and the config dir.
 		GuestHome + "/.local/share/opencode": {"opencode-data", "opencode_data"},
 		GuestHome + "/.config/opencode":      {"opencode-config", "opencode_config"},
-		// herdr persists config and named sessions in its XDG config dir.
-		GuestHome + "/.config/herdr": {"herdr", "herdr_config"},
+		// herdr persists config and named sessions in its persistent data dir.
+		GuestHome + "/.local/share/herdr": {"herdr", "herdr_data"},
 	}
 	require.Len(t, byGuest, len(want), "one share per persisted runner home")
 	for guest, w := range want {

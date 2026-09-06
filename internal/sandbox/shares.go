@@ -106,13 +106,14 @@ type AgentStateDir struct {
 //	                    PRIME_AGENT_CODING_AGENT_DIR)
 //
 // herdr (the terminal workspace manager, not a coding agent) persists its
-// config and named sessions under ~/.config/herdr: config.toml,
-// sessions/<name>/, and the server/client sockets. Sockets are safe to
-// carry across boots — herdr unlinks and rebinds them at start (verified:
-// kill -9, stale sockets, clean restart). Its ~/.local/state/herdr is
-// deliberately left on the disposable rootfs: a refetchable
-// agent-detection manifest cache, same trade as opencode's lock-only
-// state dir above.
+// config and named sessions under ~/.local/share/herdr: config.toml and
+// sessions/<name>/. Sockets (herdr.sock, herdr-client.sock) and logs reside
+// in ~/.config/herdr on the local guest rootfs because VirtioFS does not
+// support UNIX domain sockets. At boot, herdrIntegrationsScript symlinks
+// ~/.config/herdr/config.toml and ~/.config/herdr/sessions to the persistent mount.
+// Its ~/.local/state/herdr is deliberately left on the disposable rootfs: a
+// refetchable agent-detection manifest cache, same trade as opencode's
+// lock-only state dir above.
 //
 // opencode is the one runner that needs two, because it follows the XDG
 // split rather than keeping a single home (verified with `opencode debug
@@ -147,8 +148,8 @@ var AgentStateDirs = []AgentStateDir{
 		GuestPath: GuestHome + "/.local/share/opencode"},
 	{Agent: "opencode", Sub: "opencode-config", Tag: "opencode_config",
 		GuestPath: GuestHome + "/.config/opencode"},
-	{Agent: "herdr", Sub: "herdr", Tag: "herdr_config",
-		GuestPath: GuestHome + "/.config/herdr"},
+	{Agent: "herdr", Sub: "herdr", Tag: "herdr_data",
+		GuestPath: GuestHome + "/.local/share/herdr"},
 }
 
 // PersistentAgentShares returns the per-sandbox host shares that carry
