@@ -266,24 +266,24 @@ func sandboxChecks(sb *config.Sandbox) []doctorCheck {
 
 				// Image-based sandboxes: confirm the default runner exists
 				// in the image — the single most common "it boots but
-				// claude doesn't attach" cause.
+				// herdr doesn't attach" cause.
 				if sb.Image != "" {
 					ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 					out, code, err := vsockclient.Output(ctx, sockPath, 0,
-						sandbox.GuestUser, "/bin/sh", "-c", "command -v claude")
+						sandbox.GuestUser, "/bin/sh", "-c", "command -v herdr")
 					cancel()
 					switch {
 					case err != nil:
-						results = append(results, warn("guest: claude",
+						results = append(results, warn("guest: herdr",
 							fmt.Sprintf("probe failed: %v", err),
 							"re-run in a moment; if persistent, clawk down && clawk up"))
 					case code == 0:
-						results = append(results, ok("guest: claude",
+						results = append(results, ok("guest: herdr",
 							strings.TrimSpace(out)))
 					default:
-						results = append(results, warn("guest: claude",
+						results = append(results, warn("guest: herdr",
 							"not found on the image's PATH",
-							"bare `clawk` attaches claude; use an image that ships it (the default template does) or install it via `on create`"))
+							"bare `clawk` attaches herdr; use an image that ships it (the default template does) or install it via `on create`"))
 					}
 				}
 			} else if sandboxPaused(sb) {

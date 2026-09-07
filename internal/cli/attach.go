@@ -20,15 +20,15 @@ var attachCmd = &cobra.Command{
 	ValidArgsFunction: completeSandboxNames,
 	Use:               "attach [<name>] [-- <runner args>]",
 	Short:             "Reattach the default runner to an existing sandbox, booting it first if needed",
-	Long: `attach reattaches the default runner (claude) to a sandbox that
+	Long: `attach reattaches the default runner (herdr) to a sandbox that
 already exists. It is the universal resume verb: it never creates a
 sandbox and never re-reads a template — it loads the record, boots the VM
 if it isn't running, and attaches the runner. Given a name it works from
 any directory; with no name it resolves the cwd-derived sandbox.
 
-  clawk attach                  cwd-sandbox + claude
-  clawk attach foo              sandbox foo + claude, from any directory
-  clawk attach foo -- --resume  sandbox foo + claude --resume
+  clawk attach                  cwd-sandbox + herdr
+  clawk attach foo              sandbox foo + herdr, from any directory
+  clawk attach foo -- --session bar  sandbox foo + herdr --session bar
 
 To create a sandbox, use 'clawk' (cwd mode) or 'clawk work <ticket>'
 (ticket mode); attach only ever resumes what those already made.`,

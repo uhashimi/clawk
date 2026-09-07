@@ -29,7 +29,7 @@ the tool.
 
   clawk                         cwd mode. Bind-mounts $CWD into a VM keyed
                                 on the directory and attaches the default
-                                runner (claude). No git, no template, no
+                                runner (herdr). No git, no template, no
                                 ticket. The VM persists until you destroy
                                 it; conversation memory persists across
                                 destroys.

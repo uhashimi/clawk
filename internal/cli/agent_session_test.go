@@ -211,3 +211,54 @@ func TestBuildVSockEnvDeclarationOverridesEvenWhenUnresolvable(t *testing.T) {
 			"a declared-but-unresolvable name must stay suppressed, not fall back to clawk's token")
 	}
 }
+
+type recordExecProvider struct {
+	*sandbox.MockProvider
+	execCommands [][]string
+}
+
+func (r *recordExecProvider) Exec(sb *config.Sandbox, command ...string) error {
+	r.execCommands = append(r.execCommands, command)
+	return nil
+}
+
+func TestAttachAgentViaExec(t *testing.T) {
+	sb := &config.Sandbox{Name: "test-sb"}
+	mock := &recordExecProvider{MockProvider: sandbox.NewMockProvider()}
+
+	herdr, err := agentByName("herdr")
+	require.NoError(t, err)
+	err = attachAgentViaExec(sb, mock, herdr, []string{"--session", "my-session"})
+	require.NoError(t, err)
+	require.Len(t, mock.execCommands, 1)
+	require.Contains(t, mock.execCommands[0][2], "exec herdr")
+	require.NotContains(t, mock.execCommands[0][2], "clawk-runner.sh")
+	require.Equal(t, []string{"--session", "my-session"}, mock.execCommands[0][4:])
+
+	mock.execCommands = nil
+	claude, err := agentByName("claude")
+	require.NoError(t, err)
+	err = attachAgentViaExec(sb, mock, claude, []string{"--resume"})
+	require.NoError(t, err)
+	require.Len(t, mock.execCommands, 1)
+	require.Contains(t, mock.execCommands[0][2], "herdr tab create --focus")
+	require.Contains(t, mock.execCommands[0][2], "herdr workspace create --focus")
+	require.Contains(t, mock.execCommands[0][2], "herdr pane run")
+	require.Contains(t, mock.execCommands[0][2], "claude ")
+	require.Contains(t, mock.execCommands[0][2], "dangerously-skip-permissions")
+	require.Contains(t, mock.execCommands[0][2], "--resume")
+	require.NotContains(t, mock.execCommands[0][2], "SHELL=/tmp/clawk-runner.sh")
+	require.Contains(t, mock.execCommands[0][2], "exec herdr")
+}
+
+func TestHerdrAgentLaunchScriptUsesFreshPaneWithoutOverridingShell(t *testing.T) {
+	script := herdrAgentLaunchScript("codex", []string{"--dangerously-bypass-approvals-and-sandbox", "--resume"}, "/workspace/project")
+	require.Contains(t, script, "herdr tab create --focus --cwd '/workspace/project'")
+	require.Contains(t, script, "herdr workspace create --focus --cwd '/workspace/project'")
+	require.Contains(t, script, "herdr pane run \"$pane_id\"")
+	require.Contains(t, script, "codex")
+	require.Contains(t, script, "dangerously-bypass-approvals-and-sandbox")
+	require.Contains(t, script, "--resume")
+	require.Contains(t, script, "exec herdr")
+	require.NotContains(t, script, "SHELL=")
+}

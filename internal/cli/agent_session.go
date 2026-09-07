@@ -221,17 +221,25 @@ func tryVSockAgent(sb *config.Sandbox, provider sandbox.Provider, agent Agent, e
 		return fmt.Errorf("stat agent socket: %w", err)
 	}
 
-	// Use the bare tool name: there is no fixed install location across
-	// images, and the guest agent's PATH carries the image config's Env,
-	// so LookPath lands wherever the image put the tool.
 	cmd := agent.Name
+	args := launchArgs(sb, agent, extra)
+	env := buildVSockEnv(sb)
+
+	if agent.Name != "herdr" {
+		// All coding agent runners start in a fresh herdr tab. Do not pass the
+		// agent through SHELL: herdr uses SHELL for every new pane, so doing
+		// that makes later empty tabs start the last coding agent too.
+		cmd = "/bin/sh"
+		args = []string{"-lc", herdrAgentLaunchScript(agent.Name, args, agentStartDir(provider, sb))}
+	}
+
 	cfg := vsockclient.Config{
 		SocketPath: sockPath,
 		Cmd:        cmd,
-		Args:       launchArgs(sb, agent, extra),
+		Args:       args,
 		Cwd:        agentStartDir(provider, sb),
 		User:       sandbox.GuestUser,
-		Env:        buildVSockEnv(sb),
+		Env:        env,
 		// Agents are full-screen TUIs: clear so they don't overdraw the
 		// CLI's boot narration.
 		ClearScreen: true,
@@ -383,13 +391,44 @@ func attachAgentViaExec(sb *config.Sandbox, provider sandbox.Provider, agent Age
 	if !ok {
 		return fmt.Errorf("provider for %q cannot exec the agent", sb.Name)
 	}
-	defaults := strings.Join(quoteAll(launchArgs(sb, agent, nil)), " ")
-	cmdline := `: "${TERM:=xterm-256color}"; : "${COLORTERM:=truecolor}"; ` +
+
+	var cmdline string
+	if agent.Name == "herdr" {
+		defaults := strings.Join(quoteAll(launchArgs(sb, agent, nil)), " ")
+		cmdline = `: "${TERM:=xterm-256color}"; : "${COLORTERM:=truecolor}"; ` +
+			"export TERM COLORTERM; " +
+			"cd " + agentStartDir(provider, sb) + " 2>/dev/null || true; " +
+			`exec herdr ` + defaults + ` "$@"`
+		execArgs := append([]string{"bash", "-lc", cmdline, agent.Name}, extra...)
+		return sp.Exec(sb, execArgs...)
+	}
+
+	cmdline = `: "${TERM:=xterm-256color}"; : "${COLORTERM:=truecolor}"; ` +
 		"export TERM COLORTERM; " +
-		"cd " + agentStartDir(provider, sb) + " 2>/dev/null || true; " +
-		`exec ` + agent.Name + " " + defaults + ` "$@"`
-	execArgs := append([]string{"bash", "-lc", cmdline, agent.Name}, extra...)
+		herdrAgentLaunchScript(agent.Name, launchArgs(sb, agent, extra), agentStartDir(provider, sb))
+	execArgs := []string{"bash", "-lc", cmdline, agent.Name}
 	return sp.Exec(sb, execArgs...)
+}
+
+// herdrAgentLaunchScript creates a fresh tab, submits the coding agent to its
+// root shell, and then attaches the interactive Herdr client. The workspace
+// fallback is needed on the first Herdr launch, before a default workspace
+// exists. The command is deliberately submitted with pane run rather than
+// installed as SHELL: SHELL is Herdr's default for every future pane.
+func herdrAgentLaunchScript(agent string, args []string, cwd string) string {
+	agentCmd := agent + " " + strings.Join(quoteAll(args), " ")
+	cwdArg := quoteAll([]string{cwd})[0]
+	return fmt.Sprintf(`
+set -eu
+tab_json=$(herdr tab create --focus --cwd %s 2>/dev/null || herdr workspace create --focus --cwd %s)
+pane_id=$(printf '%%s\n' "$tab_json" | sed -n 's/.*"root_pane"[[:space:]]*:[[:space:]]*{[^}]*"pane_id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p')
+if [ -z "$pane_id" ]; then
+  printf 'clawk: herdr did not return the new tab pane id\n' >&2
+  exit 1
+fi
+herdr pane run "$pane_id" %s
+exec herdr
+`, cwdArg, cwdArg, quoteAll([]string{agentCmd})[0])
 }
 
 // quoteAll wraps each entry in single quotes, escaping any embedded

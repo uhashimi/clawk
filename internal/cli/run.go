@@ -198,7 +198,7 @@ func agentStartDir(provider sandbox.Provider, sb *config.Sandbox) string {
 	return wsRoot
 }
 
-// attachDefaultAgent attaches the default agent (claude) inside the
+// attachDefaultAgent attaches the default agent (herdr) inside the
 // running VM. Used by the bare `clawk` invocation and by `clawk
 // new` once provisioning succeeds. Re-fetches the sandbox so the
 // updated VMState from runUpInline is observed. Extra args are
@@ -212,7 +212,7 @@ func attachDefaultAgent(sb *config.Sandbox, extra ...string) error {
 	if err != nil {
 		return err
 	}
-	a, err := agentByName("claude")
+	a, err := agentByName(DefaultAgent)
 	if err != nil {
 		return err
 	}

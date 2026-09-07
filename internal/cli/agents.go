@@ -8,6 +8,10 @@ import (
 	"github.com/clawkwork/clawk/internal/sandbox"
 )
 
+// DefaultAgent is the name of the runner attached by default on sandbox
+// creation, bare `clawk`, `clawk work`, and `clawk attach`.
+const DefaultAgent = "herdr"
+
 // Agent describes how a coding-agent runner is launched inside a
 // sandbox. Treating each agent (claude, codex, pi, opencode, ...) as a
 // data-driven entry rather than a per-agent code path keeps the CLI

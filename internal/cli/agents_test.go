@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestDefaultAgentIsHerdr guards the default runner constant.
+func TestDefaultAgentIsHerdr(t *testing.T) {
+	require.Equal(t, "herdr", DefaultAgent)
+}
+
 // TestPiRunnerRegistered pins the pi harness's registry entry. pi ships no
 // built-in sandbox (its security docs say isolation must come from a VM,
 // which is what clawk provides), so the only thing to pre-answer is project
