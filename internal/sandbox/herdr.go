@@ -2,10 +2,10 @@ package sandbox
 
 // herdrIntegrationsScript runs at guest boot (as the sandbox user, after
 // the agent state dirs are mounted) and:
-//  1. Sets up herdr's local ~/.config/herdr layout, symlinking its persistent
-//     sessions and config.toml to ~/.local/share/herdr (host-mounted) while
-//     keeping sockets (herdr.sock, herdr-client.sock) and logs on the local
-//     guest rootfs (VirtioFS does not support UNIX domain sockets).
+//  1. Sets up herdr's local ~/.config/herdr layout, symlinking persistent
+//     config, logs, and session contents from ~/.local/share/herdr (host-mounted)
+//     while keeping sockets (herdr.sock, herdr-client.sock, sessions/<name>/herdr.sock)
+//     on the local guest rootfs (VirtioFS does not support UNIX domain sockets).
 //  2. Installs herdr's built-in agent-state integrations for every coding agent
 //     the image actually ships. The integrations write a hook into each agent's
 //     state dir that reports its live session state to a running herdr (herdr sets
@@ -40,17 +40,39 @@ package sandbox
 const herdrIntegrationsScript = `
 command -v herdr >/dev/null 2>&1 || exit 0
 mkdir -p "$HOME/.config/herdr" "$HOME/.local/share/herdr/sessions"
-if [ -d "$HOME/.config/herdr/sessions" ] && [ ! -L "$HOME/.config/herdr/sessions" ]; then
-  cp -a "$HOME/.config/herdr/sessions/." "$HOME/.local/share/herdr/sessions/" 2>/dev/null || true
-  rm -rf "$HOME/.config/herdr/sessions"
+if [ -L "$HOME/.config/herdr/sessions" ]; then
+  rm -f "$HOME/.config/herdr/sessions"
 fi
+mkdir -p "$HOME/.config/herdr/sessions"
 if [ -f "$HOME/.config/herdr/config.toml" ] && [ ! -L "$HOME/.config/herdr/config.toml" ]; then
   cp -a "$HOME/.config/herdr/config.toml" "$HOME/.local/share/herdr/config.toml" 2>/dev/null || true
   rm -f "$HOME/.config/herdr/config.toml"
 fi
 [ -e "$HOME/.local/share/herdr/config.toml" ] || touch "$HOME/.local/share/herdr/config.toml"
-ln -sfn "$HOME/.local/share/herdr/sessions" "$HOME/.config/herdr/sessions"
-ln -sfn "$HOME/.local/share/herdr/config.toml" "$HOME/.config/herdr/config.toml"
+for item in "$HOME/.local/share/herdr/".* "$HOME/.local/share/herdr/"*; do
+  [ -e "$item" ] || continue
+  base="$(basename "$item")"
+  case "$base" in
+    .|..|sessions|*.sock) continue ;;
+    *) ln -sfn "$item" "$HOME/.config/herdr/$base" ;;
+  esac
+done
+for sess_dir in "$HOME/.local/share/herdr/sessions/"*; do
+  [ -d "$sess_dir" ] || continue
+  sess_name="$(basename "$sess_dir")"
+  if [ -L "$HOME/.config/herdr/sessions/$sess_name" ]; then
+    rm -f "$HOME/.config/herdr/sessions/$sess_name"
+  fi
+  mkdir -p "$HOME/.config/herdr/sessions/$sess_name"
+  for item in "$sess_dir/".* "$sess_dir/"*; do
+    [ -e "$item" ] || continue
+    base="$(basename "$item")"
+    case "$base" in
+      .|..|*.sock) continue ;;
+      *) ln -sfn "$item" "$HOME/.config/herdr/sessions/$sess_name/$base" ;;
+    esac
+  done
+done
 command -v pi >/dev/null 2>&1 && mkdir -p "$HOME/.pi/agent/extensions"
 command -v omp >/dev/null 2>&1 && mkdir -p "$HOME/.omp/agent/extensions"
 for agent in claude codex pi omp opencode; do

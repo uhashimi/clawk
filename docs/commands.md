@@ -89,12 +89,12 @@ opencode needs two because it follows the XDG split rather than keeping one
 home directory. Its `~/.local/state/opencode` (locks) and `~/.cache/opencode`
 are deliberately left on the disposable rootfs. prime-agent's state home is
 the nested `~/.prime/agent/` (its `PRIME_AGENT_CODING_AGENT_DIR`). herdr's
-persistent data dir (`~/.local/share/herdr`) carries its config (`config.toml`)
-and named sessions (`sessions/<name>/`). Sockets (`herdr.sock`, `herdr-client.sock`)
-and logs (`herdr-server.log`) live in `~/.config/herdr` on the guest rootfs because
-VirtioFS does not support UNIX domain sockets. At boot, clawk symlinks `config.toml`
-and `sessions/` into `~/.config/herdr/`; its `~/.local/state/herdr` is a refetchable
-manifest cache and stays on the rootfs like opencode's lock dir.
+persistent data dir (`~/.local/share/herdr`) carries its config (`config.toml`),
+logs, and named sessions (`sessions/<name>/`). Sockets (`herdr.sock`, `herdr-client.sock`,
+`sessions/<name>/herdr.sock`) live on the guest rootfs because VirtioFS does not support
+UNIX domain sockets. At boot, clawk symlinks non-socket persistent files and session contents
+into `~/.config/herdr/`; its `~/.local/state/herdr` is a refetchable manifest cache and
+stays on the rootfs like opencode's lock dir.
 
 herdr gets one extra boot step: clawk-init runs a best-effort command that
 installs herdr's built-in agent integrations for every coding agent the image

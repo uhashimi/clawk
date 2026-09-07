@@ -106,11 +106,11 @@ type AgentStateDir struct {
 //	                    PRIME_AGENT_CODING_AGENT_DIR)
 //
 // herdr (the terminal workspace manager, not a coding agent) persists its
-// config and named sessions under ~/.local/share/herdr: config.toml and
-// sessions/<name>/. Sockets (herdr.sock, herdr-client.sock) and logs reside
-// in ~/.config/herdr on the local guest rootfs because VirtioFS does not
-// support UNIX domain sockets. At boot, herdrIntegrationsScript symlinks
-// ~/.config/herdr/config.toml and ~/.config/herdr/sessions to the persistent mount.
+// config, logs, and named sessions under ~/.local/share/herdr: config.toml,
+// herdr-server.log, and sessions/<name>/. Sockets (herdr.sock, herdr-client.sock,
+// sessions/<name>/herdr.sock) reside in ~/.config/herdr on the local guest rootfs
+// because VirtioFS does not support UNIX domain sockets. At boot, herdrIntegrationsScript
+// symlinks non-socket files and session contents from ~/.local/share/herdr to ~/.config/herdr.
 // Its ~/.local/state/herdr is deliberately left on the disposable rootfs: a
 // refetchable agent-detection manifest cache, same trade as opencode's
 // lock-only state dir above.
